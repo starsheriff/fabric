@@ -218,6 +218,7 @@ func TestCBCEncryptCBCPKCS7Decrypt(t *testing.T) {
 }
 
 func TestCBCPKCS7EncryptCBCDecrypt(t *testing.T) {
+  // checking cross-compatibility between PKCS7 and without
   // Encrypt with CBCEncrypt and Decrypt with CBCDecrypt
   
 
@@ -241,6 +242,34 @@ func TestCBCPKCS7EncryptCBCDecrypt(t *testing.T) {
 	if string(msg[:]) != string(decrypted[:]) {
     t.Log("msg: ", msg)
     t.Log("decrypted: ", decrypted)
+		t.Fatalf("Encryption->Decryption with same key should result in original message")
+	}
+
+}
+
+func TestCBCPKCS7EncryptCBCPKCS7Decrypt(t *testing.T) {
+  // checking cross-compatibility between PKCS7 and without  
+  // Encrypt with CBCPKCS7Encrypt and Decrypt with CBCPKCS7Decrypt
+  
+
+	key := make([]byte, 32)
+	rand.Reader.Read(key)
+
+	var msg = []byte("a message with arbitrary length (42 bytes)")
+
+	encrypted, encErr := CBCPKCS7Encrypt(key, msg)
+
+	if encErr != nil {
+		t.Fatalf("Error encrypting message %v", encErr)
+	}
+
+	decrypted, dErr := CBCPKCS7Decrypt(key, encrypted)
+
+	if dErr != nil {
+		t.Fatalf("Error encrypting message %v", dErr)
+	}
+
+	if string(msg[:]) != string(decrypted[:]) {
 		t.Fatalf("Encryption->Decryption with same key should result in original message")
 	}
 
