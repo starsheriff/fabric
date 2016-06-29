@@ -19,10 +19,7 @@ package primitives
 import (
 	"bytes"
 	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
-	"errors"
-	"io"
 	"testing"
 )
 
@@ -250,7 +247,7 @@ func TestCBCPKCS7EncryptCBCDecrypt(t *testing.T) {
 func TestCBCPKCS7EncryptCBCPKCS7Decrypt(t *testing.T) {
 	// Encrypt with CBCPKCS7Encrypt and Decrypt with CBCPKCS7Decrypt
 
-	key := make([]byte, 32)
+  key := make([]byte, 32)
 	rand.Reader.Read(key)
 
 	var msg = []byte("a message with arbitrary length (42 bytes)")
@@ -295,95 +292,4 @@ func TestCBCEncryptCBCDecrypt_KeyMismatch(t *testing.T) {
 		t.Fatalf("Encryption->Decryption with different keys shouldn't return original message")
 	}
 
-}
-
-func TestPaddingsAreEqual(t *testing.T) {
-	// Verify PR2051
-	// Check that the implementations of paddings PKCS5 and 7 return
-	// equal results.
-
-	// check that paddings are equal up to aes.BlockSize
-	for i := 0; i <= aes.BlockSize; i++ {
-		msg := []byte("0123456789ABCDEF")
-		t.Log("msg[:i] = ", msg[:i])
-		msg_pkcs5 := PKCS5Pad_Legacy(msg[:i])
-		msg_pkcs7 := PKCS7Padding(msg[:i])
-
-		t.Log(msg_pkcs5)
-		t.Log(msg_pkcs7)
-
-		if !(bytes.Equal(msg_pkcs5, msg_pkcs7)) {
-			t.Fatal("Paddings are NOT equal.")
-		}
-	}
-}
-
-//
-// Legacy code to proof refactoring did not change behaviour
-// might be removed with a subsequent PR?!
-//
-// PKCS5Pad adds a PKCS5 padding.
-//
-func PKCS5Pad_Legacy(src []byte) []byte {
-	padding := aes.BlockSize - len(src)%aes.BlockSize
-	pad := bytes.Repeat([]byte{byte(padding)}, padding)
-	return append(src, pad...)
-}
-
-// PKCS5Unpad removes a PKCS5 padding.
-//
-func PKCS5Unpad_Legacy(src []byte) []byte {
-	len := len(src)
-	unpad := int(src[len-1])
-	return src[:(len - unpad)]
-}
-
-// CBCEncrypt performs an AES CBC encryption.
-//
-func CBCEncrypt_Legacy(key, s []byte) ([]byte, error) {
-	src := PKCS5Pad_Legacy(s)
-
-	if len(src)%aes.BlockSize != 0 {
-		return nil, errors.New("plaintext length is not a multiple of the block size")
-	}
-
-	blk, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	enc := make([]byte, aes.BlockSize+len(src))
-	iv := enc[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, err
-	}
-
-	mode := cipher.NewCBCEncrypter(blk, iv)
-	mode.CryptBlocks(enc[aes.BlockSize:], src)
-
-	return enc, nil
-}
-
-// CBCDecrypt performs an AES CBC decryption.
-//
-func CBCDecrypt_Legacy(key, src []byte) ([]byte, error) {
-	blk, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(src) < aes.BlockSize {
-		return nil, errors.New("ciphertext too short")
-	}
-	iv := src[:aes.BlockSize]
-	src = src[aes.BlockSize:]
-
-	if len(src)%aes.BlockSize != 0 {
-		return nil, errors.New("ciphertext length is not a multiple of the block size")
-	}
-
-	mode := cipher.NewCBCDecrypter(blk, iv)
-	mode.CryptBlocks(src, src)
-
-	return PKCS5Unpad_Legacy(src), nil
 }
