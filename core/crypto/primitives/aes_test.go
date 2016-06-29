@@ -297,6 +297,13 @@ func TestCBCEncryptCBCDecrypt_KeyMismatch(t *testing.T) {
 
 }
 
+// *********************************************************************
+// Testing legacy code to proof refactoring with PR2051  did not change 
+// the behaviour.
+// might be removed with a subsequent PR?!
+// *********************************************************************
+
+
 func TestPaddingsAreEqual(t *testing.T) {
 	// Verify PR2051
 	// Check that the implementations of paddings PKCS5 and 7 return
@@ -313,15 +320,71 @@ func TestPaddingsAreEqual(t *testing.T) {
 		t.Log(msg_pkcs7)
 
 		if !(bytes.Equal(msg_pkcs5, msg_pkcs7)) {
-			t.Fatal("Paddings are NOT equal.")
+			t.Fatalf("Paddings are NOT equal for message length %d", i)
 		}
 	}
 }
 
-//
-// Legacy code to proof refactoring did not change behaviour
+func TestCBCPKCS7EncryptCBCPKCS5Decrypt(t *testing.T) {
+	// Encrypt with CBCPKCS7Encrypt and Decrypt with CBCDecrypt_Legacy
+
+	key := make([]byte, 32)
+	rand.Reader.Read(key)
+
+	var msg = []byte("a message with arbitrary length (42 bytes)")
+
+	encrypted, encErr := CBCPKCS7Encrypt(key, msg)
+
+	if encErr != nil {
+		t.Fatalf("Error encrypting message %v", encErr)
+	}
+
+	decrypted, dErr := CBCDecrypt_Legacy(key, encrypted)
+
+	if dErr != nil {
+		t.Fatalf("Error encrypting message %v", dErr)
+	}
+
+	if string(msg[:]) != string(decrypted[:]) {
+		t.Fatalf("Encryption->Decryption with same key should result in original message")
+	}
+
+}
+
+func TestCBCPKCS5EncryptCBCPKCS7Decrypt(t *testing.T) {
+	// Encrypt with CBCEncrypt_Legacy and Decrypt with CBCPKCS7Decrypt
+
+	key := make([]byte, 32)
+	rand.Reader.Read(key)
+
+	var msg = []byte("a message with arbitrary length (42 bytes)")
+
+	encrypted, encErr := CBCEncrypt_Legacy(key, msg)
+
+	if encErr != nil {
+		t.Fatalf("Error encrypting message %v", encErr)
+	}
+
+	decrypted, dErr := CBCPKCS7Decrypt(key, encrypted)
+
+	if dErr != nil {
+		t.Fatalf("Error encrypting message %v", dErr)
+	}
+
+	if string(msg[:]) != string(decrypted[:]) {
+		t.Fatalf("Encryption->Decryption with same key should result in original message")
+	}
+
+}
+
+
+// *********************************************************************
+// Legacy code to proof refactoring with PR2051  did not change 
+// the behaviour.
 // might be removed with a subsequent PR?!
-//
+// *********************************************************************
+
+
 // PKCS5Pad adds a PKCS5 padding.
 //
 func PKCS5Pad_Legacy(src []byte) []byte {
