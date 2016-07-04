@@ -143,6 +143,30 @@ func TestCBCPKCS7Encrypt_CipherLengthCorrect(t *testing.T) {
 	}
 }
 
+func TestCBCEncryptCBCDecrypt_KeyMismatch(t *testing.T) {
+
+	defer func() {
+		recover()
+	}()
+
+	key := make([]byte, 32)
+	rand.Reader.Read(key)
+
+	decryptionKey := make([]byte, 32)
+	copy(decryptionKey, key[:])
+	decryptionKey[0] = key[0] + 1
+
+	var msg = []byte("a message to be encrypted")
+
+	encrypted, _ := CBCEncrypt(key, msg)
+	decrypted, _ := CBCDecrypt(decryptionKey, encrypted)
+
+	if string(msg[:]) == string(decrypted[:]) {
+		t.Fatalf("Encryption->Decryption with different keys shouldn't return original message")
+	}
+
+}
+
 func TestCBCEncrypt_IsDeterministic(t *testing.T) {
 	// Check that the cipher is identical when encrypted with the same
 	// key.
@@ -157,12 +181,6 @@ func TestCBCEncrypt_RandomnessOneBitChange(t *testing.T) {
 
 	// !!!
 	// Cannot do yet because we cannot mock the IV
-}
-
-func TestCBCEncrypt_DecryptManually(t *testing.T) {
-	// Encrypt, then decrypt manually.
-
-	// Probably not necessary
 }
 
 func TestCBCEncryptCBCDecrypt(t *testing.T) {
@@ -191,6 +209,8 @@ func TestCBCEncryptCBCDecrypt(t *testing.T) {
 
 }
 
+// @jonathanlevi: this test fails, but I would expect it to run as a
+// user.
 func TestCBCEncryptCBCPKCS7Decrypt(t *testing.T) {
 	// checking cross-compatibility between PKCS7 and without
 	// Encrypt with CBCEncrypt and Decrypt with CBCPKCS7Decrypt
@@ -249,6 +269,8 @@ func TestCBCPKCS7EncryptCBCDecrypt(t *testing.T) {
 
 func TestCBCPKCS7EncryptCBCPKCS7Decrypt(t *testing.T) {
 	// Encrypt with CBCPKCS7Encrypt and Decrypt with CBCPKCS7Decrypt
+  // The intent is not to test the implementation of the aes standard 
+  // library but to verify the code around the calls to aes.
 
 	key := make([]byte, 32)
 	rand.Reader.Read(key)
@@ -273,29 +295,94 @@ func TestCBCPKCS7EncryptCBCPKCS7Decrypt(t *testing.T) {
 
 }
 
-func TestCBCEncryptCBCDecrypt_KeyMismatch(t *testing.T) {
+func TestPKCS7Padding(t *testing.T) {
+  // Verify the PKCS7 padding, plaintext version that is easier to read.
+  
+  if aes.BlockSize > 16 {
+    t.Fatal("The block size is larger than 16 bytes, i.e. it has changed.",
+            " The test needs to be updated and failes deliberately.")
+  }
+  
+  // 0 byte message
+  msg := []byte("")
+  expected := []byte{ 16, 16, 16, 16,
+                      16, 16, 16, 16, 
+                      16, 16, 16, 16, 
+                      16, 16, 16, 16}
+  result := PKCS7Padding(msg)
+  
+  if !bytes.Equal(expected, result) {
+    t.Fatal("Padding error: Expected ", expected, " but got ", result)
+  }  
+  
+  // 1 byte message
+  msg = []byte("0")
+  expected = []byte{'0', 15, 15, 15, 
+                      15, 15, 15, 15, 
+                      15, 15, 15, 15, 
+                      15, 15, 15, 15}
+  result = PKCS7Padding(msg)
+  
+  if !bytes.Equal(expected, result) {
+    t.Fatal("Padding error: Expected ", expected, " but got ", result)
+  }
 
-	defer func() {
-		recover()
-	}()
+  
+  // 2 byte message
+  msg = []byte("01")
+  expected = []byte{'0', '1', 14, 14, 
+                     14,  14, 14, 14, 
+                     14,  14, 14, 14, 
+                     14,  14, 14, 14}
+  result = PKCS7Padding(msg)
+  
+  if !bytes.Equal(expected, result) {
+    t.Fatal("Padding error: Expected ", expected, " but got ", result)
+  }
+  
+  // 3 to 15 byte messages
+  for i := 3; i < aes.BlockSize; i++ {
+		msg := []byte("0123456789ABCDEF")
+    
+		result := PKCS7Padding(msg[:i])
 
-	key := make([]byte, 32)
-	rand.Reader.Read(key)
-
-	decryptionKey := make([]byte, 32)
-	copy(decryptionKey, key[:])
-	decryptionKey[0] = key[0] + 1
-
-	var msg = []byte("a message to be encrypted")
-
-	encrypted, _ := CBCEncrypt(key, msg)
-	decrypted, _ := CBCDecrypt(decryptionKey, encrypted)
-
-	if string(msg[:]) == string(decrypted[:]) {
-		t.Fatalf("Encryption->Decryption with different keys shouldn't return original message")
-	}
-
+    padding := aes.BlockSize-i
+    expected_padding := bytes.Repeat( []byte{byte(padding)}, padding)
+    expected = append(msg[:i], expected_padding...) 
+        
+    if !bytes.Equal(result, expected) {
+      t.Fatal("Padding error: Expected ", expected, " but got ", result)
+    }
+    
+  }
+  
+  // aes.BlockSize length message
+  msg = bytes.Repeat( []byte{byte('x')}, aes.BlockSize)
+  
+  result = PKCS7Padding(msg)
+  
+  expected_padding := bytes.Repeat( []byte{byte(aes.BlockSize)}, 
+                                    aes.BlockSize)  
+  expected = append(msg, expected_padding...) 
+  
+  t.Log(result, " expected " , expected)
+  
+  if len(result) != 2*aes.BlockSize {
+    t.Fatal("Padding error: expected the length of the returned slice ",
+            "to be 2 times aes.BlockSize")
+  }
+  
+  if !bytes.Equal(expected, result) {
+    t.Fatal("Padding error: Expected ", expected, " but got ", result)
+  }  
+  
 }
+
+//
+// @jonathanlevi: I'd remove everyting below this line for the PR. I 
+// just kept it for now in my fork.
+//
+
 
 // *********************************************************************
 // Testing legacy code to proof refactoring with PR2051  did not change 
