@@ -351,6 +351,7 @@ func TestPKCS7Padding(t *testing.T) {
 	}
 
 	// aes.BlockSize length message
+  // !! needs to be modified for PR2093
 	msg = bytes.Repeat([]byte{byte('x')}, aes.BlockSize)
 
 	result = PKCS7Padding(msg)
@@ -358,8 +359,6 @@ func TestPKCS7Padding(t *testing.T) {
 	expected_padding := bytes.Repeat([]byte{byte(aes.BlockSize)},
 		aes.BlockSize)
 	expected = append(msg, expected_padding...)
-
-	t.Log(result, " expected ", expected)
 
 	if len(result) != 2*aes.BlockSize {
 		t.Fatal("Padding error: expected the length of the returned slice ",
@@ -370,6 +369,81 @@ func TestPKCS7Padding(t *testing.T) {
 		t.Fatal("Padding error: Expected ", expected, " but got ", result)
 	}
 
+}
+
+func TestPKCS7UnPadding(t *testing.T) {
+	// 0 byte message
+  expected := []byte("")
+	msg := []byte{16, 16, 16, 16,
+		16, 16, 16, 16,
+		16, 16, 16, 16,
+		16, 16, 16, 16}
+  
+	result, _ := PKCS7UnPadding(msg)
+
+	if !bytes.Equal(expected, result) {
+		t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
+	}
+  
+	// 1 byte message
+	expected = []byte("0")
+	msg = []byte{'0', 15, 15, 15,
+		15, 15, 15, 15,
+		15, 15, 15, 15,
+		15, 15, 15, 15}
+    
+	result, _ = PKCS7UnPadding(msg)
+
+	if !bytes.Equal(expected, result) {
+		t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
+	}  
+
+	// 2 byte message
+	expected = []byte("01")
+	msg = []byte{'0', '1', 14, 14,
+		14, 14, 14, 14,
+		14, 14, 14, 14,
+		14, 14, 14, 14}
+    
+	result, _ = PKCS7UnPadding(msg)
+
+	if !bytes.Equal(expected, result) {
+		t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
+	}  
+  
+	// 3 to aes.BlockSize-1 byte messages
+	for i := 3; i < aes.BlockSize; i++ {
+		base := []byte("0123456789ABCDEF")
+
+		i_pad := aes.BlockSize - i
+		padding := bytes.Repeat([]byte{byte(i_pad)}, i_pad)
+		msg = append(base[:i], padding...)
+    
+    expected := base[:i]
+		result, _ := PKCS7UnPadding(msg)    
+
+		if !bytes.Equal(result, expected) {
+			t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
+		}
+
+	} 
+  
+  // aes.BlockSize length message
+  // !! needs to be modified for PR2093
+	expected = bytes.Repeat([]byte{byte('x')}, aes.BlockSize)
+
+
+	padding := bytes.Repeat([]byte{byte(aes.BlockSize)},
+		aes.BlockSize)
+	msg = append(expected, padding...)
+  
+	result, _ = PKCS7UnPadding(msg)
+
+	if !bytes.Equal(expected, result) {
+		t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
+	}
+  
+  
 }
 
 //
