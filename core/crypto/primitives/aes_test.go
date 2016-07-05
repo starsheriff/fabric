@@ -19,10 +19,7 @@ package primitives
 import (
 	"bytes"
 	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
-	"errors"
-	"io"
 	"testing"
 )
 
@@ -46,10 +43,9 @@ func TestCBCEncrypt_EmptyText(t *testing.T) {
 
 	t.Log("Cipher length: ", len(cipher))
 
-	// expected cipher length: 32
-	// with padding, at least one block gets encrypted
-	// the first block is the IV
-	var expectedLength = aes.BlockSize + aes.BlockSize
+	// expected cipher length: aes.BlockSize
+	// the first and only block is the IV
+	var expectedLength = aes.BlockSize
 
 	if len(cipher) != expectedLength {
 		t.Fatalf("Cipher length is wrong. Expected %d, got %d",
@@ -167,22 +163,6 @@ func TestCBCEncryptCBCDecrypt_KeyMismatch(t *testing.T) {
 
 }
 
-func TestCBCEncrypt_IsDeterministic(t *testing.T) {
-	// Check that the cipher is identical when encrypted with the same
-	// key.
-
-	// !!!
-	// Cannot do yet because we cannot mock the IV :-/
-}
-
-func TestCBCEncrypt_RandomnessOneBitChange(t *testing.T) {
-	// Change one bit (or byte?) in plain text. More than x% of cipher
-	// should change as a result.
-
-	// !!!
-	// Cannot do yet because we cannot mock the IV
-}
-
 func TestCBCEncryptCBCDecrypt(t *testing.T) {
 	// Encrypt with CBCEncrypt and Decrypt with CBCDecrypt
 
@@ -204,64 +184,6 @@ func TestCBCEncryptCBCDecrypt(t *testing.T) {
 	}
 
 	if string(msg[:]) != string(decrypted[:]) {
-		t.Fatalf("Encryption->Decryption with same key should result in original message")
-	}
-
-}
-
-// @jonathanlevi: this test fails, but I would expect it to run as a
-// user.
-func TestCBCEncryptCBCPKCS7Decrypt(t *testing.T) {
-	// checking cross-compatibility between PKCS7 and without
-	// Encrypt with CBCEncrypt and Decrypt with CBCPKCS7Decrypt
-
-	key := make([]byte, 32)
-	rand.Reader.Read(key)
-
-	var msg = []byte("a 16 byte messag")
-
-	encrypted, encErr := CBCEncrypt(key, msg)
-
-	if encErr != nil {
-		t.Fatalf("Error encrypting message %v", encErr)
-	}
-
-	decrypted, dErr := CBCPKCS7Decrypt(key, encrypted)
-
-	if dErr != nil {
-		t.Fatalf("Error encrypting message %v", dErr)
-	}
-
-	if string(msg[:]) != string(decrypted[:]) {
-		t.Fatalf("Encryption->Decryption with same key should result in original message")
-	}
-
-}
-
-func TestCBCPKCS7EncryptCBCDecrypt(t *testing.T) {
-	// checking cross-compatibility between PKCS7 and without
-	// Encrypt with CBCEncrypt and Decrypt with CBCDecrypt
-
-	key := make([]byte, 32)
-	rand.Reader.Read(key)
-
-	var msg = []byte("a 16 byte messag")
-
-	encrypted, encErr := CBCPKCS7Encrypt(key, msg)
-
-	if encErr != nil {
-		t.Fatalf("Error encrypting message %v", encErr)
-	}
-
-	decrypted, dErr := CBCDecrypt(key, encrypted)
-
-	if dErr != nil {
-		t.Fatalf("Error encrypting message %v", dErr)
-	}
-
-	if string(msg[:]) != string(decrypted[:]) {
-		t.Log("msg: ", msg)
-		t.Log("decrypted: ", decrypted)
 		t.Fatalf("Encryption->Decryption with same key should result in original message")
 	}
 
@@ -442,160 +364,4 @@ func TestPKCS7UnPadding(t *testing.T) {
 		t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
 	}
 
-}
-
-//
-// @jonathanlevi: I'd remove everyting below this line for the PR. I
-// just kept it for now in my fork.
-//
-
-// *********************************************************************
-// Testing legacy code to proof refactoring with PR2051  did not change
-// the behaviour.
-// might be removed with a subsequent PR?!
-// *********************************************************************
-
-func TestPaddingsAreEqual(t *testing.T) {
-	// Verify PR2051
-	// Check that the implementations of paddings PKCS5 and 7 return
-	// equal results.
-
-	// check that paddings are equal up to aes.BlockSize
-	for i := 0; i <= aes.BlockSize; i++ {
-		msg := []byte("0123456789ABCDEF")
-		t.Log("msg[:i] = ", msg[:i])
-		msgPkcs5 := PKCS5PadLegacy(msg[:i])
-		msgPkcs7 := PKCS7Padding(msg[:i])
-
-		t.Log(msgPkcs5)
-		t.Log(msgPkcs7)
-
-		if !(bytes.Equal(msgPkcs5, msgPkcs7)) {
-			t.Fatalf("Paddings are NOT equal for message length %d", i)
-		}
-	}
-}
-
-func TestCBCPKCS7EncryptCBCPKCS5Decrypt(t *testing.T) {
-	// Encrypt with CBCPKCS7Encrypt and Decrypt with CBCDecrypt_Legacy
-
-	key := make([]byte, 32)
-	rand.Reader.Read(key)
-
-	var msg = []byte("a message with arbitrary length (42 bytes)")
-
-	encrypted, encErr := CBCPKCS7Encrypt(key, msg)
-
-	if encErr != nil {
-		t.Fatalf("Error encrypting message %v", encErr)
-	}
-
-	decrypted, dErr := CBCDecryptLegacy(key, encrypted)
-
-	if dErr != nil {
-		t.Fatalf("Error encrypting message %v", dErr)
-	}
-
-	if string(msg[:]) != string(decrypted[:]) {
-		t.Fatalf("Encryption->Decryption with same key should result in original message")
-	}
-
-}
-
-func TestCBCPKCS5EncryptCBCPKCS7Decrypt(t *testing.T) {
-	// Encrypt with CBCEncrypt_Legacy and Decrypt with CBCPKCS7Decrypt
-
-	key := make([]byte, 32)
-	rand.Reader.Read(key)
-
-	var msg = []byte("a message with arbitrary length (42 bytes)")
-
-	encrypted, encErr := CBCEncryptLegacy(key, msg)
-
-	if encErr != nil {
-		t.Fatalf("Error encrypting message %v", encErr)
-	}
-
-	decrypted, dErr := CBCPKCS7Decrypt(key, encrypted)
-
-	if dErr != nil {
-		t.Fatalf("Error encrypting message %v", dErr)
-	}
-
-	if string(msg[:]) != string(decrypted[:]) {
-		t.Fatalf("Encryption->Decryption with same key should result in original message")
-	}
-
-}
-
-// *********************************************************************
-// Legacy code to proof refactoring with PR2051  did not change
-// the behaviour.
-// might be removed with a subsequent PR?!
-// *********************************************************************
-
-// PKCS5Pad adds a PKCS5 padding.
-//
-func PKCS5PadLegacy(src []byte) []byte {
-	padding := aes.BlockSize - len(src)%aes.BlockSize
-	pad := bytes.Repeat([]byte{byte(padding)}, padding)
-	return append(src, pad...)
-}
-
-// PKCS5Unpad removes a PKCS5 padding.
-//
-func PKCS5UnpadLegacy(src []byte) []byte {
-	len := len(src)
-	unpad := int(src[len-1])
-	return src[:(len - unpad)]
-}
-
-// CBCEncrypt performs an AES CBC encryption.
-//
-func CBCEncryptLegacy(key, s []byte) ([]byte, error) {
-	src := PKCS5PadLegacy(s)
-
-	if len(src)%aes.BlockSize != 0 {
-		return nil, errors.New("plaintext length is not a multiple of the block size")
-	}
-
-	blk, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	enc := make([]byte, aes.BlockSize+len(src))
-	iv := enc[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, err
-	}
-
-	mode := cipher.NewCBCEncrypter(blk, iv)
-	mode.CryptBlocks(enc[aes.BlockSize:], src)
-
-	return enc, nil
-}
-
-// CBCDecrypt performs an AES CBC decryption.
-//
-func CBCDecryptLegacy(key, src []byte) ([]byte, error) {
-	blk, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(src) < aes.BlockSize {
-		return nil, errors.New("ciphertext too short")
-	}
-	iv := src[:aes.BlockSize]
-	src = src[aes.BlockSize:]
-
-	if len(src)%aes.BlockSize != 0 {
-		return nil, errors.New("ciphertext length is not a multiple of the block size")
-	}
-
-	mode := cipher.NewCBCDecrypter(blk, iv)
-	mode.CryptBlocks(src, src)
-
-	return PKCS5UnpadLegacy(src), nil
 }
