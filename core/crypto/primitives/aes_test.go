@@ -341,8 +341,8 @@ func TestPKCS7Padding(t *testing.T) {
 		result := PKCS7Padding(msg[:i])
 
 		padding := aes.BlockSize - i
-		expected_padding := bytes.Repeat([]byte{byte(padding)}, padding)
-		expected = append(msg[:i], expected_padding...)
+		expectedPadding := bytes.Repeat([]byte{byte(padding)}, padding)
+		expected = append(msg[:i], expectedPadding...)
 
 		if !bytes.Equal(result, expected) {
 			t.Fatal("Padding error: Expected ", expected, " but got ", result)
@@ -351,14 +351,14 @@ func TestPKCS7Padding(t *testing.T) {
 	}
 
 	// aes.BlockSize length message
-  // !! needs to be modified for PR2093
+	// !! needs to be modified for PR2093
 	msg = bytes.Repeat([]byte{byte('x')}, aes.BlockSize)
 
 	result = PKCS7Padding(msg)
 
-	expected_padding := bytes.Repeat([]byte{byte(aes.BlockSize)},
+	expectedPadding := bytes.Repeat([]byte{byte(aes.BlockSize)},
 		aes.BlockSize)
-	expected = append(msg, expected_padding...)
+	expected = append(msg, expectedPadding...)
 
 	if len(result) != 2*aes.BlockSize {
 		t.Fatal("Padding error: expected the length of the returned slice ",
@@ -373,30 +373,30 @@ func TestPKCS7Padding(t *testing.T) {
 
 func TestPKCS7UnPadding(t *testing.T) {
 	// 0 byte message
-  expected := []byte("")
+	expected := []byte("")
 	msg := []byte{16, 16, 16, 16,
 		16, 16, 16, 16,
 		16, 16, 16, 16,
 		16, 16, 16, 16}
-  
+
 	result, _ := PKCS7UnPadding(msg)
 
 	if !bytes.Equal(expected, result) {
 		t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
 	}
-  
+
 	// 1 byte message
 	expected = []byte("0")
 	msg = []byte{'0', 15, 15, 15,
 		15, 15, 15, 15,
 		15, 15, 15, 15,
 		15, 15, 15, 15}
-    
+
 	result, _ = PKCS7UnPadding(msg)
 
 	if !bytes.Equal(expected, result) {
 		t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
-	}  
+	}
 
 	// 2 byte message
 	expected = []byte("01")
@@ -404,46 +404,44 @@ func TestPKCS7UnPadding(t *testing.T) {
 		14, 14, 14, 14,
 		14, 14, 14, 14,
 		14, 14, 14, 14}
-    
-	result, _ = PKCS7UnPadding(msg)
 
-	if !bytes.Equal(expected, result) {
-		t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
-	}  
-  
-	// 3 to aes.BlockSize-1 byte messages
-	for i := 3; i < aes.BlockSize; i++ {
-		base := []byte("0123456789ABCDEF")
-
-		i_pad := aes.BlockSize - i
-		padding := bytes.Repeat([]byte{byte(i_pad)}, i_pad)
-		msg = append(base[:i], padding...)
-    
-    expected := base[:i]
-		result, _ := PKCS7UnPadding(msg)    
-
-		if !bytes.Equal(result, expected) {
-			t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
-		}
-
-	} 
-  
-  // aes.BlockSize length message
-  // !! needs to be modified for PR2093
-	expected = bytes.Repeat([]byte{byte('x')}, aes.BlockSize)
-
-
-	padding := bytes.Repeat([]byte{byte(aes.BlockSize)},
-		aes.BlockSize)
-	msg = append(expected, padding...)
-  
 	result, _ = PKCS7UnPadding(msg)
 
 	if !bytes.Equal(expected, result) {
 		t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
 	}
-  
-  
+
+	// 3 to aes.BlockSize-1 byte messages
+	for i := 3; i < aes.BlockSize; i++ {
+		base := []byte("0123456789ABCDEF")
+
+		iPad := aes.BlockSize - i
+		padding := bytes.Repeat([]byte{byte(iPad)}, iPad)
+		msg = append(base[:i], padding...)
+
+		expected := base[:i]
+		result, _ := PKCS7UnPadding(msg)
+
+		if !bytes.Equal(result, expected) {
+			t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
+		}
+
+	}
+
+	// aes.BlockSize length message
+	// !! needs to be modified for PR2093
+	expected = bytes.Repeat([]byte{byte('x')}, aes.BlockSize)
+
+	padding := bytes.Repeat([]byte{byte(aes.BlockSize)},
+		aes.BlockSize)
+	msg = append(expected, padding...)
+
+	result, _ = PKCS7UnPadding(msg)
+
+	if !bytes.Equal(expected, result) {
+		t.Fatal("UnPadding error: Expected ", expected, " but got ", result)
+	}
+
 }
 
 //
@@ -466,13 +464,13 @@ func TestPaddingsAreEqual(t *testing.T) {
 	for i := 0; i <= aes.BlockSize; i++ {
 		msg := []byte("0123456789ABCDEF")
 		t.Log("msg[:i] = ", msg[:i])
-		msg_pkcs5 := PKCS5Pad_Legacy(msg[:i])
-		msg_pkcs7 := PKCS7Padding(msg[:i])
+		msgPkcs5 := PKCS5PadLegacy(msg[:i])
+		msgPkcs7 := PKCS7Padding(msg[:i])
 
-		t.Log(msg_pkcs5)
-		t.Log(msg_pkcs7)
+		t.Log(msgPkcs5)
+		t.Log(msgPkcs7)
 
-		if !(bytes.Equal(msg_pkcs5, msg_pkcs7)) {
+		if !(bytes.Equal(msgPkcs5, msgPkcs7)) {
 			t.Fatalf("Paddings are NOT equal for message length %d", i)
 		}
 	}
@@ -492,7 +490,7 @@ func TestCBCPKCS7EncryptCBCPKCS5Decrypt(t *testing.T) {
 		t.Fatalf("Error encrypting message %v", encErr)
 	}
 
-	decrypted, dErr := CBCDecrypt_Legacy(key, encrypted)
+	decrypted, dErr := CBCDecryptLegacy(key, encrypted)
 
 	if dErr != nil {
 		t.Fatalf("Error encrypting message %v", dErr)
@@ -512,7 +510,7 @@ func TestCBCPKCS5EncryptCBCPKCS7Decrypt(t *testing.T) {
 
 	var msg = []byte("a message with arbitrary length (42 bytes)")
 
-	encrypted, encErr := CBCEncrypt_Legacy(key, msg)
+	encrypted, encErr := CBCEncryptLegacy(key, msg)
 
 	if encErr != nil {
 		t.Fatalf("Error encrypting message %v", encErr)
@@ -538,7 +536,7 @@ func TestCBCPKCS5EncryptCBCPKCS7Decrypt(t *testing.T) {
 
 // PKCS5Pad adds a PKCS5 padding.
 //
-func PKCS5Pad_Legacy(src []byte) []byte {
+func PKCS5PadLegacy(src []byte) []byte {
 	padding := aes.BlockSize - len(src)%aes.BlockSize
 	pad := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(src, pad...)
@@ -546,7 +544,7 @@ func PKCS5Pad_Legacy(src []byte) []byte {
 
 // PKCS5Unpad removes a PKCS5 padding.
 //
-func PKCS5Unpad_Legacy(src []byte) []byte {
+func PKCS5UnpadLegacy(src []byte) []byte {
 	len := len(src)
 	unpad := int(src[len-1])
 	return src[:(len - unpad)]
@@ -554,8 +552,8 @@ func PKCS5Unpad_Legacy(src []byte) []byte {
 
 // CBCEncrypt performs an AES CBC encryption.
 //
-func CBCEncrypt_Legacy(key, s []byte) ([]byte, error) {
-	src := PKCS5Pad_Legacy(s)
+func CBCEncryptLegacy(key, s []byte) ([]byte, error) {
+	src := PKCS5PadLegacy(s)
 
 	if len(src)%aes.BlockSize != 0 {
 		return nil, errors.New("plaintext length is not a multiple of the block size")
@@ -580,7 +578,7 @@ func CBCEncrypt_Legacy(key, s []byte) ([]byte, error) {
 
 // CBCDecrypt performs an AES CBC decryption.
 //
-func CBCDecrypt_Legacy(key, src []byte) ([]byte, error) {
+func CBCDecryptLegacy(key, src []byte) ([]byte, error) {
 	blk, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -599,5 +597,5 @@ func CBCDecrypt_Legacy(key, src []byte) ([]byte, error) {
 	mode := cipher.NewCBCDecrypter(blk, iv)
 	mode.CryptBlocks(src, src)
 
-	return PKCS5Unpad_Legacy(src), nil
+	return PKCS5UnpadLegacy(src), nil
 }
