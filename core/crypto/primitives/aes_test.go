@@ -439,5 +439,5 @@ func TestCBCEncryptCBCDecrypt(t *testing.T) {
 	if string(msg[:]) != string(decrypted[:]) {
 		t.Fatalf("Encryption->Decryption with same key should result in original message")
 	}
-
+  t.Fatal("dummy")
 }
